@@ -6,11 +6,15 @@
 //
 
 import SwiftUI
+import Translation
 
 struct LiveTextView: View {
     private let liveTextGroups: [LiveTextGroup]
     private let focusedLiveTextGroup: LiveTextGroup?
     private let tapAction: (LiveTextGroup) -> Void
+    
+    @State private var configuration: TranslationSession.Configuration?
+
 
     init(
         liveTextGroups: [LiveTextGroup],
@@ -20,6 +24,7 @@ struct LiveTextView: View {
         self.liveTextGroups = liveTextGroups
         self.focusedLiveTextGroup = focusedLiveTextGroup
         self.tapAction = tapAction
+        self.configuration = TranslationSession.Configuration()
     }
 
     var body: some View {
@@ -90,14 +95,27 @@ struct LiveTextView: View {
                 }
 
                 ForEach(liveTextGroups) { textGroup in
-                    HighlightView(text: textGroup.text) {
-                        tapAction(textGroup)
-                    }
-                    .frame(width: textGroup.width * width, height: textGroup.height * height)
-                    .position(
-                        x: (textGroup.minX + textGroup.width / 2) * width,
-                        y: (textGroup.minY + textGroup.height / 2) * height
-                    )
+                    
+                    let x = (textGroup.minX + textGroup.width / 2) * width
+                    let y = (textGroup.minY + textGroup.height / 2) * height
+                    let w = textGroup.width * width
+                    let h = textGroup.height * height
+                    
+                    Text(textGroup.translated ?? textGroup.text)
+                        .frame(width: w, height: h)
+                        .position(x: x, y: y)
+                        .minimumScaleFactor(0.1)
+                        .shadow(radius: 5)
+//                        .translationTask(configuration) { session in
+//                            do {
+//                                let response = try await session.translate(textGroup.text)
+//                                print("TRAN: \(response.targetText)");
+//                                Logger.info("translate response", context: ["response.targetText": response.targetText])
+//                            } catch let error {
+//                                print(error.localizedDescription);
+//                                // Handle error.
+//                            }
+//                        }
                 }
             }
         }

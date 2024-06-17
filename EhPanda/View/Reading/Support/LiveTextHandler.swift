@@ -16,11 +16,14 @@
 import Vision
 import SwiftUI
 import Foundation
+import Translation
 
 final class LiveTextHandler: ObservableObject {
     @Published var enablesLiveText = false
     @Published var liveTextGroups = [Int: [LiveTextGroup]]()
     @Published private(set) var focusedLiveTextGroup: LiveTextGroup?
+    @Published var translationConfiguration: TranslationSession.Configuration?
+
 
     private var processingRequests = [VNRequest]()
 
@@ -35,8 +38,18 @@ final class LiveTextHandler: ObservableObject {
         processingRequests.forEach { request in
             request.cancel()
         }
+        self.translationConfiguration = nil;
     }
 
+    func updateTranslateResponse(_ response: TranslationSession.Response) {
+        print(response.targetText, response.clientIdentifier ?? "")
+        let identifier = (response.clientIdentifier ?? "").components(separatedBy: ":")
+        if identifier.count != 2 { return }
+        guard let page = Int(identifier[0]) else { return }
+        guard let index = Int(identifier[1]) else { return }
+        liveTextGroups[page]?[index].translated = response.targetText
+    }
+    
     func setFocusedLiveTextGroup(_ group: LiveTextGroup) {
         Logger.info("setFocusedLiveTextGroup", context: ["group": group])
         focusedLiveTextGroup = group
@@ -125,6 +138,9 @@ final class LiveTextHandler: ObservableObject {
             let groups = groupData.compactMap(LiveTextGroup.init)
             DispatchQueue.main.async {
                 self.liveTextGroups[index] = groups
+                if (self.translationConfiguration == nil) {
+                    self.translationConfiguration = TranslationSession.Configuration()
+                }
             }
         }
     }

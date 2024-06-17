@@ -94,6 +94,8 @@ struct LiveTextGroup: Equatable, Identifiable {
     var id: UUID = .init()
     let blocks: [LiveTextBlock]
     let text: String
+    var translated: String?
+    var translationLock: Bool = false
 
     var minX: Double
     var maxX: Double

@@ -9,6 +9,7 @@ import SwiftUI
 import Kingfisher
 import SwiftUIPager
 import ComposableArchitecture
+import Translation
 
 struct ReadingView: View {
     @Environment(\.colorScheme) private var colorScheme
@@ -193,6 +194,7 @@ struct ReadingView: View {
             originalImageURLs: viewStore.originalImageURLs, loadingStates: viewStore.imageURLLoadingStates,
             enablesLiveText: liveTextHandler.enablesLiveText, liveTextGroups: liveTextHandler.liveTextGroups,
             focusedLiveTextGroup: liveTextHandler.focusedLiveTextGroup,
+            liveTextHandler: liveTextHandler,
             liveTextTapAction: liveTextHandler.setFocusedLiveTextGroup,
             fetchAction: { viewStore.send(.fetchImageURLs($0)) },
             refetchAction: { viewStore.send(.refetchImageURLs($0)) },
@@ -323,6 +325,7 @@ private struct HorizontalImageStack: View {
     private let enablesLiveText: Bool
     private let liveTextGroups: [Int: [LiveTextGroup]]
     private let focusedLiveTextGroup: LiveTextGroup?
+    private let liveTextHandler: LiveTextHandler
     private let liveTextTapAction: (LiveTextGroup) -> Void
     private let fetchAction: (Int) -> Void
     private let refetchAction: (Int) -> Void
@@ -339,6 +342,7 @@ private struct HorizontalImageStack: View {
         config: ImageStackConfig, imageURLs: [Int: URL], originalImageURLs: [Int: URL],
         loadingStates: [Int: LoadingState], enablesLiveText: Bool,
         liveTextGroups: [Int: [LiveTextGroup]], focusedLiveTextGroup: LiveTextGroup?,
+        liveTextHandler: LiveTextHandler,
         liveTextTapAction: @escaping (LiveTextGroup) -> Void,
         fetchAction: @escaping (Int) -> Void,
         refetchAction: @escaping (Int) -> Void, prefetchAction: @escaping (Int) -> Void,
@@ -357,6 +361,7 @@ private struct HorizontalImageStack: View {
         self.enablesLiveText = enablesLiveText
         self.liveTextGroups = liveTextGroups
         self.focusedLiveTextGroup = focusedLiveTextGroup
+        self.liveTextHandler = liveTextHandler
         self.liveTextTapAction = liveTextTapAction
         self.fetchAction = fetchAction
         self.refetchAction = refetchAction
@@ -396,6 +401,27 @@ private struct HorizontalImageStack: View {
             loadSucceededAction: loadSucceededAction,
             loadFailedAction: loadFailedAction
         )
+        .translationTask(liveTextHandler.translationConfiguration) { session in
+            print("translationTask")
+            var translationBatch: [TranslationSession.Request] = [];
+            liveTextHandler.liveTextGroups.forEach { (page, items) in
+                items.enumerated().forEach { (index, item) in
+                    if (item.translated == nil && item.translationLock == false) {
+                        translationBatch.append(TranslationSession.Request(sourceText: item.text, clientIdentifier: "\(page):\(index)"))
+                        liveTextHandler.liveTextGroups[page]?[index].translationLock = true
+                    }
+                }
+            }
+            if (!translationBatch.isEmpty) {
+                do {
+                    for try await response in session.translate(batch: translationBatch) {
+                        liveTextHandler.updateTranslateResponse(response)
+                    }
+                } catch {
+                    print(error.localizedDescription)
+                }
+            }
+        }
         .onAppear {
             if !isDatabaseLoading {
                 if imageURLs[index] == nil {
